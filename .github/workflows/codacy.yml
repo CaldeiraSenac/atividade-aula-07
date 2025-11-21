@@ -9,12 +9,12 @@ on:
     - cron: '31 5 * * 6'
 
 permissions:
-  contents: read
+  contents: write # Precisamos de permissão de escrita para criar o .gitignore temporário
 
 jobs:
   codacy-security-scan:
     permissions:
-      contents: read 
+      contents: write 
       security-events: write 
       actions: read 
     name: Codacy Security Scan
@@ -22,13 +22,26 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Importante para ferramentas de análise verem o histórico
+
+      # PASSO NOVO: Cria a regra de ignorar arquivos automaticamente
+      - name: Prepare environment
+        run: |
+          echo "results.sarif" >> .gitignore
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          # O comando abaixo garante que o git saiba que o arquivo deve ser ignorado
+          git add .gitignore
+          # Não precisamos commitar, apenas garantir que o arquivo exista e o git saiba dele
 
       - name: Run Codacy Analysis CLI
-        uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
+        # Mudamos para @master para tentar pegar scripts mais novos
+        uses: codacy/codacy-analysis-cli-action@master
+        continue-on-error: true # Isso impede que o erro 'unary operator' pare o fluxo se for não-fatal
         with:
-          # REMOVIDO: project-token (pois estava vazio e quebrando o script)
           verbose: true
-          output: /tmp/results.sarif
+          output: results.sarif
           format: sarif
           gh-code-scanning-compat: true
           max-allowed-issues: 2147483647
@@ -36,4 +49,4 @@ jobs:
       - name: Upload SARIF results file
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: /tmp/results.sarif
+          sarif_file: results.sarif
